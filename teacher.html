@@ -1,0 +1,121 @@
+<!-- teacher.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Teacher Dashboard</title>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+    }
+    input, button, select {
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      display: block;
+      font-size: 1rem;
+    }
+    .assignment {
+      margin-top: 2rem;
+      border-top: 1px solid #ccc;
+      padding-top: 1rem;
+    }
+    .student {
+      margin-left: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h2>Teacher Dashboard</h2>
+
+  <label>Subject:
+    <select id="subject">
+      <option value="Math">Math</option>
+      <option value="English">English</option>
+      <option value="Science">Science</option>
+    </select>
+  </label>
+
+  <input type="text" id="title" placeholder="Assignment Title" />
+  <input type="text" id="templateUrl" placeholder="Google Doc Template Link" />
+  <button onclick="publishAssignment()">Publish Assignment</button>
+
+  <div id="assignmentLink"></div>
+  <div id="assignments"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyAA3RgTVx8ypjD2MuUDW5wwGcXy5l9dHhw",
+      authDomain: "year-6-f8090.firebaseapp.com",
+      databaseURL: "https://year-6-f8090-default-rtdb.firebaseio.com",
+      projectId: "year-6-f8090",
+      storageBucket: "year-6-f8090.firebasestorage.app",
+      messagingSenderId: "1028033073339",
+      appId: "1:1028033073339:web:d02448b0a41e559d40599e"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+
+    function sanitizeId(str) {
+      return str.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    }
+
+    async function publishAssignment() {
+      const subject = document.getElementById('subject').value;
+      const title = document.getElementById('title').value.trim();
+      const templateUrl = document.getElementById('templateUrl').value.trim();
+
+      if (!subject || !title || !templateUrl) return alert("Please fill all fields");
+
+      const assignId = sanitizeId(`${subject}_${title}`);
+      await db.ref("assignments/" + assignId).set({
+        title,
+        subject,
+        templateUrl
+      });
+
+      const link = `student.html?assign=${assignId}`;
+      document.getElementById("assignmentLink").innerHTML = `Student link: <a href="${link}" target="_blank">${link}</a>`;
+    }
+
+    function loadAssignments() {
+      db.ref("assignments").on("value", snapshot => {
+        const data = snapshot.val();
+        const container = document.getElementById("assignments");
+        container.innerHTML = "";
+
+        for (const key in data) {
+          const a = data[key];
+          const section = document.createElement("div");
+          section.className = "assignment";
+          section.innerHTML = `<h3>${a.subject}: ${a.title}</h3><p>Student Submissions:</p>`;
+
+          const studentList = document.createElement("ul");
+
+          if (a.students) {
+            for (const sid in a.students) {
+              const s = a.students[sid];
+              const li = document.createElement("li");
+              li.className = "student";
+              li.innerHTML = `<a href="${s.docUrl}" target="_blank">${s.name}</a>`;
+              studentList.appendChild(li);
+            }
+          } else {
+            const none = document.createElement("p");
+            none.textContent = "No students yet.";
+            section.appendChild(none);
+          }
+
+          section.appendChild(studentList);
+          container.appendChild(section);
+        }
+      });
+    }
+
+    loadAssignments();
+  </script>
+</body>
+</html>
