@@ -1,32 +1,43 @@
-<!-- student.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Start Assignment</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Assignment</title>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   <style>
     body {
-      font-family: Arial, sans-serif;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
+      font-family: 'Segoe UI', sans-serif;
       padding: 2rem;
+      max-width: 600px;
+      margin: auto;
     }
     input, button {
-      padding: 0.5rem;
-      margin: 0.5rem;
+      padding: 0.6rem;
+      margin-top: 1rem;
+      width: 100%;
       font-size: 1rem;
+    }
+    button {
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #0056b3;
+    }
+    #workArea {
+      margin-top: 2rem;
     }
   </style>
 </head>
 <body>
-  <h2>Start Your Assignment</h2>
-  <input type="text" id="studentName" placeholder="Enter your full name" />
+  <h2>Student Assignment Page</h2>
+  <input type="text" id="name" placeholder="Enter your name" />
   <button onclick="startAssignment()">Start Assignment</button>
+  <div id="workArea"></div>
 
   <script>
     const firebaseConfig = {
@@ -34,63 +45,60 @@
       authDomain: "year-6-f8090.firebaseapp.com",
       databaseURL: "https://year-6-f8090-default-rtdb.firebaseio.com",
       projectId: "year-6-f8090",
-      storageBucket: "year-6-f8090.firebasestorage.app",
+      storageBucket: "year-6-f8090.appspot.com",
       messagingSenderId: "1028033073339",
       appId: "1:1028033073339:web:d02448b0a41e559d40599e"
     };
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const folderId = "1ji90Pzk_w2gBWQGRE4j2zqzBbg7-RBC5";
-    const webAppUrl = "https://script.google.com/macros/s/AKfycbzGSvL_Ey5gzvb9K2Ba-OauEmQP-pn4pm8I9FVaX_7E0Du77pO0EsWUjCeqWqVPm1CEzg/exec";
+    const urlParams = new URLSearchParams(window.location.search);
+    const assignId = urlParams.get('assign');
 
-    function getQueryParam(param) {
-      const urlParams = new URLSearchParams(window.location.search);
-      return urlParams.get(param);
-    }
+    let templateUrl = "";
+    let studentName = "";
 
-    async function startAssignment() {
-      const studentName = document.getElementById("studentName").value.trim();
-      if (!studentName) return alert("Please enter your full name");
+    function startAssignment() {
+      studentName = document.getElementById("name").value.trim();
+      if (!studentName) return alert("Please enter your name");
 
-      const assignmentId = getQueryParam("assign");
-      if (!assignmentId) return alert("Assignment ID missing in URL");
+      fetch(`https://year-6-f8090-default-rtdb.firebaseio.com/assignments/${assignId}.json`)
+        .then(res => res.json())
+        .then(data => {
+          if (!data || !data.templateUrl) return alert("Assignment not found.");
+          templateUrl = data.templateUrl;
 
-      // Get assignment data
-      const snapshot = await db.ref("assignments/" + assignmentId).once("value");
-      const assignment = snapshot.val();
-      if (!assignment) return alert("Assignment not found");
+          return fetch("https://script.google.com/macros/s/AKfycby1XPc9vdnSHUAI73yXxuvnRW9RGv03MjeRB-JALvSCqkRf7JXoCyoL5EmmDR7guFo/exec", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: new URLSearchParams({
+              name: studentName,
+              assignId: assignId,
+              templateUrl: templateUrl
+            })
+          });
+        })
+        .then(res => res.json())
+        .then(result => {
+          if (result.error) return alert("Error: " + result.error);
 
-      // Prepare data for Google Apps Script
-      const postData = {
-        studentName,
-        assignmentId,
-        docUrl: assignment.templateUrl,
-        folderId
-      };
+          const docUrl = result.docUrl;
+          document.getElementById("workArea").innerHTML = `
+            <p>Your assignment has been created successfully!</p>
+            <a href="${docUrl}" target="_blank">${docUrl}</a>
+          `;
 
-      const response = await fetch(webAppUrl, {
-        method: "POST",
-        body: JSON.stringify(postData),
-        headers: {
-          "Content-Type": "application/json"
-        }
-      });
-
-      const result = await response.json();
-      if (result.success) {
-        // Save student data
-        await db.ref(`assignments/${assignmentId}/students/${studentName.toLowerCase()}`).set({
-          name: studentName,
-          docUrl: result.url,
-          timestamp: Date.now()
+          db.ref(`assignments/${assignId}/students/${studentName}`).set({
+            name: studentName,
+            docUrl: docUrl
+          });
+        })
+        .catch(err => {
+          console.error(err);
+          alert("Something went wrong: " + err.message);
         });
-
-        // Open student doc
-        window.open(result.url, "_blank");
-      } else {
-        alert("Error creating document: " + result.error);
-      }
     }
   </script>
 </body>
