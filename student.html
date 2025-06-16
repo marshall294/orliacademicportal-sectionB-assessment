@@ -54,21 +54,34 @@
 
     const urlParams = new URLSearchParams(window.location.search);
     const assignId = urlParams.get('assign');
+    const classGroup = urlParams.get('class');
+
+    if (!assignId || !classGroup) {
+      alert("Missing assignment or class information in the URL.");
+    }
 
     let templateUrl = "";
     let studentName = "";
 
     function startAssignment() {
       studentName = document.getElementById("name").value.trim();
-      if (!studentName) return alert("Please enter your name");
+      if (!studentName) {
+        alert("Please enter your name");
+        return;
+      }
 
-      fetch(`https://year-6-f8090-default-rtdb.firebaseio.com/assignments/${assignId}.json`)
+      // Load assignment data from correct class group
+      fetch(`https://year-6-f8090-default-rtdb.firebaseio.com/assignments/${classGroup}/${assignId}.json`)
         .then(res => res.json())
         .then(data => {
-          if (!data || !data.templateUrl) return alert("Assignment not found.");
+          if (!data || !data.templateUrl) {
+            alert("Assignment not found.");
+            throw new Error("Assignment missing or invalid.");
+          }
+
           templateUrl = data.templateUrl;
 
-          return fetch("https://script.google.com/macros/s/AKfycbzGSvL_Ey5gzvb9K2Ba-OauEmQP-pn4pm8I9FVaX_7E0Du77pO0EsWUjCeqWqVPm1CEzg/exec", {
+          return fetch("https://script.google.com/macros/s/AKfycby1XPc9vdnSHUAI73yXxuvnRW9RGv03MjeRB-JALvSCqkRf7JXoCyoL5EmmDR7guFo/exec", {
             method: "POST",
             headers: {
               "Content-Type": "application/x-www-form-urlencoded"
@@ -82,15 +95,20 @@
         })
         .then(res => res.json())
         .then(result => {
-          if (result.error) return alert("Error: " + result.error);
+          if (result.error) {
+            alert("Error: " + result.error);
+            throw new Error(result.error);
+          }
 
           const docUrl = result.docUrl;
+
           document.getElementById("workArea").innerHTML = `
             <p>Your assignment has been created successfully!</p>
             <a href="${docUrl}" target="_blank">${docUrl}</a>
           `;
 
-          db.ref(`assignments/${assignId}/students/${studentName}`).set({
+          // Save student's submission to Firebase under classGroup
+          return db.ref(`assignments/${classGroup}/${assignId}/students/${studentName}`).set({
             name: studentName,
             docUrl: docUrl
           });
