@@ -31,6 +31,14 @@
 <body>
   <h2>Teacher Dashboard</h2>
 
+  <label>Class:
+    <select id="classGroup">
+      <option value="Class_A">Class A</option>
+      <option value="Class_B">Class B</option>
+      <option value="Class_C">Class C</option>
+    </select>
+  </label>
+
   <label>Subject:
     <select id="subject">
       <option value="Math">Math</option>
@@ -47,12 +55,13 @@
   <div id="assignments"></div>
 
   <script>
+    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAA3RgTVx8ypjD2MuUDW5wwGcXy5l9dHhw",
       authDomain: "year-6-f8090.firebaseapp.com",
       databaseURL: "https://year-6-f8090-default-rtdb.firebaseio.com",
       projectId: "year-6-f8090",
-      storageBucket: "year-6-f8090.firebasestorage.app",
+      storageBucket: "year-6-f8090.appspot.com",
       messagingSenderId: "1028033073339",
       appId: "1:1028033073339:web:d02448b0a41e559d40599e"
     };
@@ -64,21 +73,33 @@
     }
 
     async function publishAssignment() {
+      const classGroup = document.getElementById('classGroup').value;
       const subject = document.getElementById('subject').value;
       const title = document.getElementById('title').value.trim();
       const templateUrl = document.getElementById('templateUrl').value.trim();
 
-      if (!subject || !title || !templateUrl) return alert("Please fill all fields");
+      if (!classGroup || !subject || !title || !templateUrl) {
+        alert("Please fill all fields");
+        return;
+      }
 
       const assignId = sanitizeId(`${subject}_${title}`);
-      await db.ref("assignments/" + assignId).set({
+      const assignmentData = {
         title,
         subject,
+        classGroup,
         templateUrl
-      });
+      };
 
-      const link = `student.html?assign=${assignId}`;
-      document.getElementById("assignmentLink").innerHTML = `Student link: <a href="${link}" target="_blank">${link}</a>`;
+      await db.ref(`assignments/${classGroup}/${assignId}`).set(assignmentData);
+
+      const link = `student.html?assign=${assignId}&class=${classGroup}`;
+      document.getElementById("assignmentLink").innerHTML = `
+        Student link: <a href="${link}" target="_blank">${link}</a>
+      `;
+
+      document.getElementById("title").value = '';
+      document.getElementById("templateUrl").value = '';
     }
 
     function loadAssignments() {
@@ -87,30 +108,38 @@
         const container = document.getElementById("assignments");
         container.innerHTML = "";
 
-        for (const key in data) {
-          const a = data[key];
-          const section = document.createElement("div");
-          section.className = "assignment";
-          section.innerHTML = `<h3>${a.subject}: ${a.title}</h3><p>Student Submissions:</p>`;
+        for (const classKey in data) {
+          const classData = data[classKey];
+          const classDiv = document.createElement("div");
+          classDiv.innerHTML = `<h2>${classKey.replace(/_/g, ' ')}</h2>`;
 
-          const studentList = document.createElement("ul");
+          for (const assignId in classData) {
+            const a = classData[assignId];
+            const section = document.createElement("div");
+            section.className = "assignment";
+            section.innerHTML = `<h3>${a.subject}: ${a.title}</h3><p>Student Submissions:</p>`;
 
-          if (a.students) {
-            for (const sid in a.students) {
-              const s = a.students[sid];
-              const li = document.createElement("li");
-              li.className = "student";
-              li.innerHTML = `<a href="${s.docUrl}" target="_blank">${s.name}</a>`;
-              studentList.appendChild(li);
+            const studentList = document.createElement("ul");
+
+            if (a.students) {
+              for (const sid in a.students) {
+                const s = a.students[sid];
+                const li = document.createElement("li");
+                li.className = "student";
+                li.innerHTML = `<a href="${s.docUrl}" target="_blank">${s.name}</a>`;
+                studentList.appendChild(li);
+              }
+            } else {
+              const none = document.createElement("p");
+              none.textContent = "No students yet.";
+              section.appendChild(none);
             }
-          } else {
-            const none = document.createElement("p");
-            none.textContent = "No students yet.";
-            section.appendChild(none);
+
+            section.appendChild(studentList);
+            classDiv.appendChild(section);
           }
 
-          section.appendChild(studentList);
-          container.appendChild(section);
+          container.appendChild(classDiv);
         }
       });
     }
