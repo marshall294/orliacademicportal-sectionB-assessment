@@ -4,58 +4,28 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Teacher Dashboard</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <title>Teacher - Upload Assessment</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 2rem;
-    }
-    input, button, select {
-      padding: 0.5rem;
-      margin: 0.5rem 0;
-      display: block;
-      font-size: 1rem;
-    }
-    .assignment {
-      margin-top: 2rem;
-      border-top: 1px solid #ccc;
-      padding-top: 1rem;
-    }
-    .student {
-      margin-left: 1rem;
-    }
+    body { font-family: Arial; padding: 2rem; background: #f0f8ff; }
+    label, input, select, button { display: block; margin: 10px 0; }
+    .answer-list { margin-top: 2rem; }
   </style>
 </head>
 <body>
-  <h2>Teacher Dashboard</h2>
+  <h2>Upload Assessment</h2>
+  <label>Class: <input id="classInput" placeholder="e.g. Primary 6" /></label>
+  <label>Subject: <input id="subjectInput" placeholder="e.g. Mathematics" /></label>
+  <label>Google Doc Link: <input id="docLinkInput" placeholder="Paste Google Doc link here" /></label>
+  <button onclick="uploadAssessment()">Upload</button>
 
-  <label>Class:
-    <select id="classGroup">
-      <option value="Class_A">Class A</option>
-      <option value="Class_B">Class B</option>
-      <option value="Class_C">Class C</option>
-    </select>
-  </label>
-
-  <label>Subject:
-    <select id="subject">
-      <option value="Math">Math</option>
-      <option value="English">English</option>
-      <option value="Science">Science</option>
-    </select>
-  </label>
-
-  <input type="text" id="title" placeholder="Assignment Title" />
-  <input type="text" id="templateUrl" placeholder="Google Doc Template Link" />
-  <button onclick="publishAssignment()">Publish Assignment</button>
-
-  <div id="assignmentLink"></div>
-  <div id="assignments"></div>
+  <div class="answer-list">
+    <h3>Student Submissions</h3>
+    <div id="submissions"></div>
+  </div>
 
   <script>
-    // Firebase config
     const firebaseConfig = {
       apiKey: "AIzaSyAA3RgTVx8ypjD2MuUDW5wwGcXy5l9dHhw",
       authDomain: "year-6-f8090.firebaseapp.com",
@@ -68,83 +38,33 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    function sanitizeId(str) {
-      return str.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+    function uploadAssessment() {
+      const className = document.getElementById("classInput").value;
+      const subject = document.getElementById("subjectInput").value;
+      const link = document.getElementById("docLinkInput").value;
+      if (!className || !subject || !link) return alert("Fill all fields");
+
+      db.ref(`assessments/${className}/${subject}`).set({ link });
+      alert("Assessment uploaded successfully");
     }
 
-    async function publishAssignment() {
-      const classGroup = document.getElementById('classGroup').value;
-      const subject = document.getElementById('subject').value;
-      const title = document.getElementById('title').value.trim();
-      const templateUrl = document.getElementById('templateUrl').value.trim();
-
-      if (!classGroup || !subject || !title || !templateUrl) {
-        alert("Please fill all fields");
-        return;
-      }
-
-      const assignId = sanitizeId(`${subject}_${title}`);
-      const assignmentData = {
-        title,
-        subject,
-        classGroup,
-        templateUrl
-      };
-
-      await db.ref(`assignments/${classGroup}/${assignId}`).set(assignmentData);
-
-      const link = `student.html?assign=${assignId}&class=${classGroup}`;
-      document.getElementById("assignmentLink").innerHTML = `
-        Student link: <a href="${link}" target="_blank">${link}</a>
-      `;
-
-      document.getElementById("title").value = '';
-      document.getElementById("templateUrl").value = '';
-    }
-
-    function loadAssignments() {
-      db.ref("assignments").on("value", snapshot => {
-        const data = snapshot.val();
-        const container = document.getElementById("assignments");
+    function loadSubmissions() {
+      db.ref("submissions").on("value", (snap) => {
+        const data = snap.val();
+        const container = document.getElementById("submissions");
         container.innerHTML = "";
-
-        for (const classKey in data) {
-          const classData = data[classKey];
-          const classDiv = document.createElement("div");
-          classDiv.innerHTML = `<h2>${classKey.replace(/_/g, ' ')}</h2>`;
-
-          for (const assignId in classData) {
-            const a = classData[assignId];
-            const section = document.createElement("div");
-            section.className = "assignment";
-            section.innerHTML = `<h3>${a.subject}: ${a.title}</h3><p>Student Submissions:</p>`;
-
-            const studentList = document.createElement("ul");
-
-            if (a.students) {
-              for (const sid in a.students) {
-                const s = a.students[sid];
-                const li = document.createElement("li");
-                li.className = "student";
-                li.innerHTML = `<a href="${s.docUrl}" target="_blank">${s.name}</a>`;
-                studentList.appendChild(li);
-              }
-            } else {
-              const none = document.createElement("p");
-              none.textContent = "No students yet.";
-              section.appendChild(none);
-            }
-
-            section.appendChild(studentList);
-            classDiv.appendChild(section);
-          }
-
-          container.appendChild(classDiv);
-        }
+        if (!data) return;
+        Object.entries(data).forEach(([className, subjects]) => {
+          Object.entries(subjects).forEach(([subject, submissions]) => {
+            const div = document.createElement("div");
+            div.innerHTML = `<strong>${className} - ${subject}</strong><ul>` +
+              Object.entries(submissions).map(([name, link]) => `<li>${name}: <a href="${link}" target="_blank">View</a></li>`).join('') + '</ul>';
+            container.appendChild(div);
+          });
+        });
       });
     }
-
-    loadAssignments();
+    loadSubmissions();
   </script>
 </body>
 </html>
