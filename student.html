@@ -1,68 +1,62 @@
+<!-- student.html -->
 <!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Student Assessment</title>
+  <title>Student - Assessments</title>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
   <style>
     body {
-      font-family: 'Segoe UI', sans-serif;
-      padding: 20px;
-      background: #f2f2f2;
-    }
-    h2 {
-      text-align: center;
-    }
-    label {
-      margin-top: 15px;
-      display: block;
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #fdfdfd;
     }
     select, input, button {
+      display: block;
+      margin: 10px 0;
+      padding: 8px;
       width: 100%;
-      padding: 10px;
-      margin-top: 5px;
+      max-width: 400px;
+    }
+    .assessment {
+      margin-top: 2rem;
+      padding: 1rem;
       border: 1px solid #ccc;
-      border-radius: 6px;
+      border-radius: 8px;
+      max-width: 600px;
+      background: #f9f9f9;
     }
-    button {
-      background-color: #28a745;
-      color: white;
-      font-weight: bold;
-      margin-top: 20px;
+    .assessment h4 {
+      margin-top: 0;
     }
-    #docLink {
-      margin-top: 20px;
-      background: #fff;
-      padding: 15px;
-      border-radius: 5px;
-      box-shadow: 0 0 8px rgba(0,0,0,0.1);
+    iframe {
+      width: 100%;
+      height: 500px;
+      border: none;
+      margin-top: 10px;
     }
   </style>
 </head>
 <body>
+  <h2>Student Assessment Portal</h2>
+  <label for="classSelect">Select Class:</label>
+  <select id="classSelect"></select>
 
-  <h2>Student Assessment</h2>
+  <label for="subjectSelect">Select Subject:</label>
+  <select id="subjectSelect"></select>
 
-  <label>Full Name:</label>
-  <input type="text" id="nameInput" placeholder="Enter your full name" />
+  <label for="nameInput">Your Full Name:</label>
+  <input type="text" id="nameInput" placeholder="Enter your full name"/>
 
-  <label>Select Class:</label>
-  <select id="classSelect" onchange="loadSubjects()">
-    <option value="">-- Select Class --</option>
-  </select>
+  <button onclick="startAssessment()">Start Assessment</button>
 
-  <label>Select Subject:</label>
-  <select id="subjectSelect">
-    <option value="">-- Select Subject --</option>
-  </select>
-
-  <button onclick="getAssessment()">Get Assessment</button>
-
-  <div id="docLink"></div>
-
-  <!-- Firebase SDK -->
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <div class="assessment" id="assessmentContainer" style="display:none;">
+    <h4>Assessment Link:</h4>
+    <p><a id="assessmentLink" href="#" target="_blank">Open Your Assessment</a></p>
+    <iframe id="assessmentIframe"></iframe>
+  </div>
 
   <script>
     const firebaseConfig = {
@@ -77,85 +71,77 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const folderId = "1ji90Pzk_w2gBWQGRE4j2zqzBbg7-RBC5";
-    const scriptURL = "https://script.google.com/macros/s/AKfycbzGSvL_Ey5gzvb9K2Ba-OauEmQP-pn4pm8I9FVaX_7E0Du77pO0EsWUjCeqWqVPm1CEzg/exec";
+    const classSelect = document.getElementById("classSelect");
+    const subjectSelect = document.getElementById("subjectSelect");
 
-    // Load available classes from Firebase
-    db.ref("assessments").once("value", (snapshot) => {
-      const data = snapshot.val();
-      const classSelect = document.getElementById("classSelect");
-      for (const cls in data) {
-        const option = document.createElement("option");
-        option.value = cls;
-        option.textContent = cls;
-        classSelect.appendChild(option);
-      }
-    });
-
-    // Load subjects for selected class
-    function loadSubjects() {
-      const cls = document.getElementById("classSelect").value;
-      const subjectSelect = document.getElementById("subjectSelect");
-      subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
-
-      if (!cls) return;
-
-      db.ref(`assessments/${cls}`).once("value", (snapshot) => {
-        const subjects = snapshot.val();
-        for (const subj in subjects) {
+    function populateDropdowns() {
+      db.ref("assessments").once("value", snapshot => {
+        const data = snapshot.val();
+        const classes = Object.keys(data || {});
+        classSelect.innerHTML = `<option value="">-- Select Class --</option>`;
+        classes.forEach(cls => {
           const option = document.createElement("option");
-          option.value = subj;
-          option.textContent = subj;
-          subjectSelect.appendChild(option);
-        }
+          option.value = cls;
+          option.textContent = cls;
+          classSelect.appendChild(option);
+        });
       });
     }
 
-    // Get student assessment
-    async function getAssessment() {
-      const name = document.getElementById("nameInput").value.trim();
-      const cls = document.getElementById("classSelect").value;
-      const subj = document.getElementById("subjectSelect").value;
+    classSelect.addEventListener("change", () => {
+      const selectedClass = classSelect.value;
+      if (!selectedClass) return;
+      db.ref(`assessments/${selectedClass}`).once("value", snap => {
+        const subjects = Object.keys(snap.val() || {});
+        subjectSelect.innerHTML = `<option value="">-- Select Subject --</option>`;
+        subjects.forEach(sub => {
+          const option = document.createElement("option");
+          option.value = sub;
+          option.textContent = sub;
+          subjectSelect.appendChild(option);
+        });
+      });
+    });
 
-      if (!name || !cls || !subj) {
-        alert("Please fill in all fields.");
+    async function startAssessment() {
+      const className = classSelect.value;
+      const subject = subjectSelect.value;
+      const studentName = document.getElementById("nameInput").value.trim();
+      if (!className || !subject || !studentName) {
+        alert("Please select class, subject and enter your name.");
         return;
       }
 
-      const snap = await db.ref(`assessments/${cls}/${subj}`).get();
-      if (!snap.exists()) {
-        alert("No assessment found.");
-        return;
-      }
+      // Get original Google Doc link
+      const linkSnap = await db.ref(`assessments/${className}/${subject}/link`).once("value");
+      const originalUrl = linkSnap.val();
+      if (!originalUrl) return alert("Assessment link not found.");
 
-      const link = snap.val().link;
-      const formData = new FormData();
-      formData.append("name", name);
-      formData.append("class", cls);
-      formData.append("subject", subj);
-      formData.append("link", link);
-      formData.append("folder", folderId);
+      // Create student copy using GET (to avoid CORS POST issues)
+      const scriptUrl = 'https://script.google.com/macros/s/AKfycbzGSvL_Ey5gzvb9K2Ba-OauEmQP-pn4pm8I9FVaX_7E0Du77pO0EsWUjCeqWqVPm1CEzg/exec';
+      const requestUrl = `${scriptUrl}?name=${encodeURIComponent(studentName)}&class=${encodeURIComponent(className)}&assign=${encodeURIComponent(subject)}&url=${encodeURIComponent(originalUrl)}`;
 
       try {
-        const res = await fetch(scriptURL, {
-          method: "POST",
-          body: formData
-        });
-        const data = await res.json();
+        const res = await fetch(requestUrl);
+        const result = await res.json();
 
-        if (data.url) {
-          await db.ref(`submissions/${cls}/${subj}/${name}`).set(data.url);
-          document.getElementById("docLink").innerHTML = `
-            <p><strong>Assessment copied successfully!</strong></p>
-            <a href="${data.url}" target="_blank">Click here to open your document</a>`;
+        if (result.url) {
+          const finalLink = result.url;
+          await db.ref(`submissions/${className}/${subject}/${studentName}`).set(finalLink);
+
+          document.getElementById("assessmentLink").href = finalLink;
+          document.getElementById("assessmentIframe").src = finalLink;
+          document.getElementById("assessmentContainer").style.display = "block";
         } else {
-          alert("Error: No URL received.");
+          alert("Copy creation failed.");
         }
-      } catch (error) {
-        console.error("Fetch error:", error);
-        alert("Submission failed. Try again later.");
+      } catch (err) {
+        console.error("Fetch error:", err);
+        alert("Failed to start assessment.");
       }
     }
+
+    populateDropdowns();
   </script>
 </body>
 </html>
