@@ -40,7 +40,6 @@
   <div id="workArea"></div>
 
   <script>
-    // ✅ Firebase Configuration
     const firebaseConfig = {
       apiKey: "AIzaSyAA3RgTVx8ypjD2MuUDW5wwGcXy5l9dHhw",
       authDomain: "year-6-f8090.firebaseapp.com",
@@ -53,14 +52,12 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // ✅ URL Parameters
     const urlParams = new URLSearchParams(window.location.search);
     const assignId = urlParams.get('assign');
     const classGroup = urlParams.get('class');
 
     if (!assignId || !classGroup) {
-      document.getElementById("workArea").innerHTML = `<p style="color:red;">Missing assignment or class information in the URL.</p>`;
-      throw new Error("Missing assignment or class parameters.");
+      alert("Missing assignment or class information in the URL.");
     }
 
     function startAssignment() {
@@ -70,29 +67,23 @@
         return;
       }
 
-      // ✅ Fetch the assignment details from Firebase
       fetch(`https://year-6-f8090-default-rtdb.firebaseio.com/assignments/${classGroup}/${assignId}.json`)
         .then(res => res.json())
         .then(data => {
           if (!data || !data.templateUrl) {
-            alert("Assignment not found or templateUrl missing.");
-            throw new Error("Invalid assignment data.");
+            alert("Assignment not found.");
+            throw new Error("Assignment missing or invalid.");
           }
 
           const templateUrl = data.templateUrl;
+          const webAppUrl = "https://script.google.com/macros/s/AKfycbzGSvL_Ey5gzvb9K2Ba-OauEmQP-pn4pm8I9FVaX_7E0Du77pO0EsWUjCeqWqVPm1CEzg/exec";
+          const query = new URLSearchParams({
+            name: studentName,
+            assignId: assignId,
+            templateUrl: templateUrl
+          }).toString();
 
-          // ✅ Call your new Apps Script to generate the document
-          return fetch("https://script.google.com/macros/s/AKfycbzGSvL_Ey5gzvb9K2Ba-OauEmQP-pn4pm8I9FVaX_7E0Du77pO0EsWUjCeqWqVPm1CEzg/exec", {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/x-www-form-urlencoded"
-            },
-            body: new URLSearchParams({
-              name: studentName,
-              assignId: assignId,
-              templateUrl: templateUrl
-            })
-          });
+          return fetch(`${webAppUrl}?${query}`);
         })
         .then(res => res.json())
         .then(result => {
@@ -102,13 +93,11 @@
           }
 
           const docUrl = result.docUrl;
-
           document.getElementById("workArea").innerHTML = `
-            <p style="color:green;">Your assignment has been created successfully!</p>
-            <p><a href="${docUrl}" target="_blank">Click here to view your assignment</a></p>
+            <p>Your assignment has been created successfully!</p>
+            <a href="${docUrl}" target="_blank">${docUrl}</a>
           `;
 
-          // ✅ Save student's submission to Firebase
           return db.ref(`assignments/${classGroup}/${assignId}/students/${studentName}`).set({
             name: studentName,
             docUrl: docUrl
