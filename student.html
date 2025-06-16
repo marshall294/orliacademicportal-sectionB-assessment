@@ -3,41 +3,66 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Student Assignment</title>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <title>Student Assessment</title>
   <style>
     body {
       font-family: 'Segoe UI', sans-serif;
-      padding: 2rem;
-      max-width: 600px;
-      margin: auto;
+      padding: 20px;
+      background: #f2f2f2;
     }
-    input, button {
-      padding: 0.6rem;
-      margin-top: 1rem;
+    h2 {
+      text-align: center;
+    }
+    label {
+      margin-top: 15px;
+      display: block;
+    }
+    select, input, button {
       width: 100%;
-      font-size: 1rem;
+      padding: 10px;
+      margin-top: 5px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
     }
     button {
-      background-color: #007bff;
+      background-color: #28a745;
       color: white;
-      border: none;
-      cursor: pointer;
+      font-weight: bold;
+      margin-top: 20px;
     }
-    button:hover {
-      background-color: #0056b3;
-    }
-    #workArea {
-      margin-top: 2rem;
+    #docLink {
+      margin-top: 20px;
+      background: #fff;
+      padding: 15px;
+      border-radius: 5px;
+      box-shadow: 0 0 8px rgba(0,0,0,0.1);
     }
   </style>
 </head>
 <body>
-  <h2>Student Assignment Page</h2>
-  <input type="text" id="name" placeholder="Enter your name" />
-  <button onclick="startAssignment()">Start Assignment</button>
-  <div id="workArea"></div>
+
+  <h2>Student Assessment</h2>
+
+  <label>Full Name:</label>
+  <input type="text" id="nameInput" placeholder="Enter your full name" />
+
+  <label>Select Class:</label>
+  <select id="classSelect" onchange="loadSubjects()">
+    <option value="">-- Select Class --</option>
+  </select>
+
+  <label>Select Subject:</label>
+  <select id="subjectSelect">
+    <option value="">-- Select Subject --</option>
+  </select>
+
+  <button onclick="getAssessment()">Get Assessment</button>
+
+  <div id="docLink"></div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
   <script>
     const firebaseConfig = {
@@ -52,61 +77,84 @@
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    const urlParams = new URLSearchParams(window.location.search);
-    const assignId = urlParams.get('assign');
-    const classGroup = urlParams.get('class');
+    const folderId = "1ji90Pzk_w2gBWQGRE4j2zqzBbg7-RBC5";
+    const scriptURL = "https://script.google.com/macros/s/AKfycbzGSvL_Ey5gzvb9K2Ba-OauEmQP-pn4pm8I9FVaX_7E0Du77pO0EsWUjCeqWqVPm1CEzg/exec";
 
-    if (!assignId || !classGroup) {
-      alert("Missing assignment or class information in the URL.");
+    // Load available classes from Firebase
+    db.ref("assessments").once("value", (snapshot) => {
+      const data = snapshot.val();
+      const classSelect = document.getElementById("classSelect");
+      for (const cls in data) {
+        const option = document.createElement("option");
+        option.value = cls;
+        option.textContent = cls;
+        classSelect.appendChild(option);
+      }
+    });
+
+    // Load subjects for selected class
+    function loadSubjects() {
+      const cls = document.getElementById("classSelect").value;
+      const subjectSelect = document.getElementById("subjectSelect");
+      subjectSelect.innerHTML = '<option value="">-- Select Subject --</option>';
+
+      if (!cls) return;
+
+      db.ref(`assessments/${cls}`).once("value", (snapshot) => {
+        const subjects = snapshot.val();
+        for (const subj in subjects) {
+          const option = document.createElement("option");
+          option.value = subj;
+          option.textContent = subj;
+          subjectSelect.appendChild(option);
+        }
+      });
     }
 
-    function startAssignment() {
-      const studentName = document.getElementById("name").value.trim();
-      if (!studentName) {
-        alert("Please enter your name");
+    // Get student assessment
+    async function getAssessment() {
+      const name = document.getElementById("nameInput").value.trim();
+      const cls = document.getElementById("classSelect").value;
+      const subj = document.getElementById("subjectSelect").value;
+
+      if (!name || !cls || !subj) {
+        alert("Please fill in all fields.");
         return;
       }
 
-      fetch(`https://year-6-f8090-default-rtdb.firebaseio.com/assignments/${classGroup}/${assignId}.json`)
-        .then(res => res.json())
-        .then(data => {
-          if (!data || !data.templateUrl) {
-            alert("Assignment not found.");
-            throw new Error("Assignment missing or invalid.");
-          }
+      const snap = await db.ref(`assessments/${cls}/${subj}`).get();
+      if (!snap.exists()) {
+        alert("No assessment found.");
+        return;
+      }
 
-          const templateUrl = data.templateUrl;
-          const webAppUrl = "https://script.google.com/macros/s/AKfycbzGSvL_Ey5gzvb9K2Ba-OauEmQP-pn4pm8I9FVaX_7E0Du77pO0EsWUjCeqWqVPm1CEzg/exec";
-          const query = new URLSearchParams({
-            name: studentName,
-            assignId: assignId,
-            templateUrl: templateUrl
-          }).toString();
+      const link = snap.val().link;
+      const formData = new FormData();
+      formData.append("name", name);
+      formData.append("class", cls);
+      formData.append("subject", subj);
+      formData.append("link", link);
+      formData.append("folder", folderId);
 
-          return fetch(`${webAppUrl}?${query}`);
-        })
-        .then(res => res.json())
-        .then(result => {
-          if (result.error) {
-            alert("Error: " + result.error);
-            throw new Error(result.error);
-          }
-
-          const docUrl = result.docUrl;
-          document.getElementById("workArea").innerHTML = `
-            <p>Your assignment has been created successfully!</p>
-            <a href="${docUrl}" target="_blank">${docUrl}</a>
-          `;
-
-          return db.ref(`assignments/${classGroup}/${assignId}/students/${studentName}`).set({
-            name: studentName,
-            docUrl: docUrl
-          });
-        })
-        .catch(err => {
-          console.error(err);
-          alert("Something went wrong: " + err.message);
+      try {
+        const res = await fetch(scriptURL, {
+          method: "POST",
+          body: formData
         });
+        const data = await res.json();
+
+        if (data.url) {
+          await db.ref(`submissions/${cls}/${subj}/${name}`).set(data.url);
+          document.getElementById("docLink").innerHTML = `
+            <p><strong>Assessment copied successfully!</strong></p>
+            <a href="${data.url}" target="_blank">Click here to open your document</a>`;
+        } else {
+          alert("Error: No URL received.");
+        }
+      } catch (error) {
+        console.error("Fetch error:", error);
+        alert("Submission failed. Try again later.");
+      }
     }
   </script>
 </body>
